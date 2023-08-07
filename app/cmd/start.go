@@ -1,14 +1,17 @@
 /*
 Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
+	"context"
 	"fmt"
-
+	shared_props "github.com/baudekin/shared-props"
 	"github.com/spf13/cobra"
+	"sync"
 )
+
+var cancel context.CancelFunc
 
 // startCmd represents the start command
 var startCmd = &cobra.Command{
@@ -22,6 +25,26 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("start called")
+		var ctx context.Context
+		// Note cancel can only be accessed from cmd package and
+		// should only be called by stop
+		ctx, cancel = context.WithCancel(context.Background())
+		var wg sync.WaitGroup
+		wg.Add(2)
+		var propchan = make(chan map[string]string)
+		// Start Property Stream
+		go func() {
+			defer wg.Done()
+			defer cancel()
+			shared_props.StartUpdating(ctx, propchan)
+		}()
+		// Respond to Property Stream Changes
+		go func() {
+			defer wg.Done()
+			defer cancel()
+			shared_props.StartMonitoring(ctx, propchan)
+		}()
+		wg.Wait()
 	},
 }
 
